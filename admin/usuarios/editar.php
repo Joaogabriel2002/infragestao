@@ -1,16 +1,15 @@
 <?php
-// /admin/usuarios/editar.php (ARQUIVO NOVO)
+// /admin/usuarios/editar.php (ATUALIZADO COM MENSAGEM DE ERRO)
 
-require_once '../../includes/header.php'; // Sobe 2 níveis
+require_once '../../includes/header.php'; 
 
-// Segurança: Só Admins
+// Segurança
 if ($usuario_role_logado != 'ADMIN') {
     echo "<p>Acesso negado.</p>";
     require_once '../../includes/footer.php';
     exit;
 }
 
-// Validação do ID na URL
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     header("Location: index.php");
     exit;
@@ -28,7 +27,7 @@ if (!$usuario) {
     exit;
 }
 
-// --- Busca de Dados para os Dropdowns ---
+// Dropdowns
 $lista_setores = $pdo->query("SELECT * FROM setores ORDER BY nome_setor")->fetchAll();
 $lista_unidades = $pdo->query("SELECT * FROM unidades ORDER BY nome_unidade")->fetchAll();
 
@@ -37,10 +36,48 @@ $lista_unidades = $pdo->query("SELECT * FROM unidades ORDER BY nome_unidade")->f
 <div class="bg-white shadow-md rounded-lg p-6 max-w-2xl mx-auto">
     <h2 class="text-2xl font-bold mb-6">Editar Usuário: <?= htmlspecialchars($usuario['nome']) ?></h2>
 
-    <form action="processar.php" method="POST" class="space-y-4">
+    <?php
+    if (isset($_GET['erro']) && $_GET['erro'] == 'avatar_invalido') {
+        echo "<div class='bg-red-100 text-red-700 p-3 rounded mb-4'>
+                <strong>Erro no Upload:</strong> O arquivo é inválido. 
+                Envie apenas imagens (JPG, PNG) com menos de 2MB.
+              </div>";
+    }
+    ?>
+    <form action="processar.php" method="POST" enctype="multipart/form-data" class="space-y-4">
         <input type="hidden" name="acao" value="editar_usuario">
         <input type="hidden" name="id_usuario" value="<?= $usuario['id_usuario'] ?>">
         
+        <div>
+            <label class="block text-gray-700 font-semibold mb-2">Foto de Perfil (Avatar)</label>
+            <div class="flex items-center space-x-4">
+                <div class="w-16 h-16 rounded-full bg-gray-200 overflow-hidden border-2 border-gray-300">
+                    <?php if ($usuario['avatar_path']): ?>
+                        <img src="<?= $base_url ?>/uploads/avatars/<?= htmlspecialchars($usuario['avatar_path']) ?>" 
+                             alt="Avatar" class="w-full h-full object-cover">
+                    <?php else: ?>
+                        <svg class="w-full h-full text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path>
+                        </svg>
+                    <?php endif; ?>
+                </div>
+                <div>
+                    <input type="file" name="avatar_upload" id="avatar_upload" class="text-sm">
+                    <p class="text-xs text-gray-500 mt-1">Envie uma imagem (JPG, PNG) de até 2MB.</p>
+                </div>
+            </div>
+            <?php if ($usuario['avatar_path']): ?>
+            <div class="mt-2">
+                <label class="flex items-center">
+                    <input type="checkbox" name="remover_avatar" class="h-4 w-4 text-red-600 border-gray-300 rounded">
+                    <span class="ml-2 text-sm text-red-700">Remover foto atual</span>
+                </label>
+            </div>
+            <?php endif; ?>
+        </div>
+        
+        <hr>
+
         <div>
             <label for="nome" class="block text-gray-700 font-semibold mb-2">Nome Completo *</label>
             <input type="text" id="nome" name="nome" 
@@ -101,7 +138,6 @@ $lista_unidades = $pdo->query("SELECT * FROM unidades ORDER BY nome_unidade")->f
                        <?= ($usuario['ativo']) ? 'checked' : '' ?>>
                 <span class="ml-2 text-gray-700 font-semibold">Usuário Ativo</span>
             </label>
-            <p class="text-sm text-gray-500 mt-1">(Desmarque para desativar o login deste usuário).</p>
         </div>
 
         <button type="submit" 
@@ -112,5 +148,5 @@ $lista_unidades = $pdo->query("SELECT * FROM unidades ORDER BY nome_unidade")->f
 </div>
 
 <?php
-require_once '../../includes/footer.php'; // Sobe 2 níveis
+require_once '../../includes/footer.php'; 
 ?>

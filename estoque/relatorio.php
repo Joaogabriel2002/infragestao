@@ -1,5 +1,5 @@
 <?php
-// /estoque/relatorio.php (ARQUIVO NOVO)
+// /estoque/relatorio.php (CORRIGIDO)
 
 require_once '../includes/header.php'; // Sobe 1 nível
 
@@ -19,8 +19,12 @@ $filtro_zerado = isset($_GET['filtro_zerado']); // true se o checkbox estiver ma
 $sql_where_parts = []; // Array para guardar as condições
 $params = []; // Array para guardar os valores do prepared statement
 
-// Condição base: SÓ queremos itens que controlam estoque
-$sql_where_parts[] = "cat.controla_estoque = true";
+// =======================================================
+// !! CORREÇÃO AQUI !!
+// A condição base deve usar o apelido 'c', e não 'cat'
+// =======================================================
+$sql_where_parts[] = "c.controla_estoque = true";
+// =======================================================
 
 // Se o usuário digitou algo no filtro de item
 if (!empty($filtro_item)) {
@@ -40,6 +44,7 @@ if (count($sql_where_parts) > 0) {
 }
 
 // 4. Query SQL Final
+// (O JOIN aqui usa 'c' como apelido)
 $sql_modelos = "SELECT 
                     m.id_modelo,
                     m.nome, 
