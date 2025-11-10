@@ -1,8 +1,7 @@
 <?php
-// /chamados/ver.php (CORRIGIDO)
+// /chamados/ver.php (ATUALIZADO COM PERMISSÃO DE COMENTÁRIO)
 
 // 1. Inclui o Header
-// $pdo, $base_url, $usuario_id_logado, $usuario_role_logado já estão disponíveis
 require_once '../includes/header.php'; // Sobe um nível
 
 // 2. Validação do ID
@@ -13,14 +12,7 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 $chamado_id = (int)$_GET['id'];
 
 // --- BUSCA PRINCIPAL (DETALHES DO CHAMADO) ---
-$sql = "SELECT 
-            c.*, 
-            u_autor.nome AS nome_autor,
-            u_autor.email AS email_autor,
-            u_tecnico.nome AS nome_tecnico,
-            cat.nome_categoria,
-            a.nome_ativo,
-            un.nome_unidade
+$sql = "SELECT c.*, u_autor.nome AS nome_autor, u_autor.email AS email_autor, u_tecnico.nome AS nome_tecnico, cat.nome_categoria, a.nome_ativo, un.nome_unidade
         FROM chamados c
         LEFT JOIN usuarios u_autor ON c.autor_id = u_autor.id_usuario
         LEFT JOIN usuarios u_tecnico ON c.tecnico_id = u_tecnico.id_usuario
@@ -28,7 +20,6 @@ $sql = "SELECT
         LEFT JOIN ativos a ON c.ativo_id = a.id_ativo
         LEFT JOIN unidades un ON a.unidade_id = un.id_unidade
         WHERE c.id_chamado = ?";
-
 $stmt = $pdo->prepare($sql);
 $stmt->execute([$chamado_id]);
 $chamado = $stmt->fetch();
@@ -39,9 +30,7 @@ if (!$chamado) {
 }
 
 // --- BUSCA HISTÓRICO (ATUALIZAÇÕES) ---
-$sql_updates = "SELECT 
-                    cu.*,
-                    u.nome AS nome_autor_update
+$sql_updates = "SELECT cu.*, u.nome AS nome_autor_update
                 FROM chamado_atualizacoes cu
                 JOIN usuarios u ON cu.autor_id = u.id_usuario
                 WHERE cu.chamado_id = ?
@@ -52,7 +41,9 @@ $atualizacoes = $stmt_updates->fetchAll();
 
 // --- BUSCA ITENS DE ESTOQUE USADOS ---
 $sql_estoque = "SELECT 
-                    mov.*,
+                    mov.id_movimentacao, 
+                    mov.quantidade,
+                    mov.data_movimentacao,
                     cat.nome AS nome_item
                 FROM movimentacoes_estoque mov
                 JOIN catalogo_modelos cat ON mov.modelo_id = cat.id_modelo
@@ -67,19 +58,10 @@ $sql_tecnicos = "SELECT id_usuario, nome FROM usuarios WHERE role IN ('TECNICO',
 $lista_tecnicos = $pdo->query($sql_tecnicos)->fetchAll();
 
 // --- BUSCA LISTA DE ITENS DE ESTOQUE (Para o <select>) ---
-//
-// !!!!!!!!!!!!! A CORREÇÃO ESTÁ AQUI !!!!!!!!!!!!!
-//
-// A query agora usa o JOIN com 'categorias_ativo' e checa 'controla_estoque = true'
-//
-$sql_itens = "SELECT 
-                m.id_modelo, 
-                m.nome 
+$sql_itens = "SELECT m.id_modelo, m.nome 
             FROM catalogo_modelos m
             JOIN categorias_ativo cat ON m.categoria_ativo_id = cat.id_categoria_ativo
-            WHERE 
-                cat.controla_estoque = true 
-                AND m.quantidade_em_estoque > 0
+            WHERE cat.controla_estoque = true AND m.quantidade_em_estoque > 0
             ORDER BY m.nome";
 $lista_itens_estoque = $pdo->query($sql_itens)->fetchAll();
 
@@ -94,6 +76,21 @@ $lista_itens_estoque = $pdo->query($sql_itens)->fetchAll();
         <?= (new DateTime($chamado['dt_abertura']))->format('d/m/Y \à\s H:i') ?>
     </p>
 </div>
+
+<?php
+if (isset($_GET['erro'])) {
+    if ($_GET['erro'] == 'estoque_insuficiente') {
+        echo "<div class='bg-red-100 text-red-700 p-4 rounded mb-6'>
+                <strong>Erro:</strong> Estoque insuficiente. A baixa não foi registrada.
+              </div>";
+    }
+}
+if (isset($_GET['sucesso'])) {
+    if ($_GET['sucesso'] == 'novo') echo "<div class='bg-green-100 text-green-700 p-4 rounded mb-6'><strong>Sucesso!</strong> Chamado aberto.</div>";
+    if ($_GET['sucesso'] == 'removido') echo "<div class='bg-green-100 text-green-700 p-4 rounded mb-6'><strong>Sucesso!</strong> Item de estoque estornado.</div>";
+    if ($_GET['sucesso'] == 'add_estoque') echo "<div class='bg-green-100 text-green-700 p-4 rounded mb-6'><strong>Sucesso!</strong> Item baixado do estoque.</div>";
+}
+?>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -112,11 +109,21 @@ $lista_itens_estoque = $pdo->query($sql_itens)->fetchAll();
         <div class="bg-white shadow-md rounded-lg p-6">
             <h3 class="text-xl font-semibold mb-4">Peças e Consumíveis Usados</h3>
             <?php if (count($itens_usados) > 0): ?>
-                <ul class="list-disc list-inside text-gray-700">
+                <ul class="list-none space-y-2 text-gray-700">
                     <?php foreach ($itens_usados as $item): ?>
-                        <li>
-                            <strong><?= $item['quantidade'] ?>x</strong> <?= htmlspecialchars($item['nome_item']) ?>
-                            <span class="text-sm text-gray-500">(em <?= (new DateTime($item['data_movimentacao']))->format('d/m/Y') ?>)</span>
+                        <li class="flex justify-between items-center">
+                            <span>
+                                <strong><?= $item['quantidade'] ?>x</strong> <?= htmlspecialchars($item['nome_item']) ?>
+                                <span class="text-sm text-gray-500">(em <?= (new DateTime($item['data_movimentacao']))->format('d/m/Y') ?>)</span>
+                            </span>
+                            
+                            <?php if ($usuario_role_logado == 'TECNICO' || $usuario_role_logado == 'ADMIN'): ?>
+                                <a href="processar.php?acao=remover_estoque&id=<?= $chamado_id ?>&mov_id=<?= $item['id_movimentacao'] ?>" 
+                                   class="text-red-500 hover:text-red-700 hover:underline text-sm font-medium"
+                                   onclick="return confirm('Tem certeza que deseja estornar este item? A quantidade voltará ao estoque.')">
+                                    [Remover]
+                                </a>
+                            <?php endif; ?>
                         </li>
                     <?php endforeach; ?>
                 </ul>
@@ -143,24 +150,26 @@ $lista_itens_estoque = $pdo->query($sql_itens)->fetchAll();
                 <?php endif; ?>
             </div>
 
-            <hr class="my-6">
-            <h4 class="text-lg font-semibold mb-3">Adicionar Comentário</h4>
-            <form action="processar.php" method="POST">
-                <input type="hidden" name="acao" value="add_comentario">
-                <input type="hidden" name="chamado_id" value="<?= $chamado_id ?>">
-                <div>
-                    <textarea name="comentario" rows="4" 
-                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" 
-                              placeholder="Digite seu comentário..." required></textarea>
-                </div>
-                <div class="mt-3 text-right">
-                    <button type="submit" 
-                            class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-300">
-                        Enviar Comentário
-                    </button>
-                </div>
-            </form>
-        </div>
+            <?php if ($usuario_role_logado == 'TECNICO' || $usuario_role_logado == 'ADMIN'): ?>
+                <hr class="my-6">
+                <h4 class="text-lg font-semibold mb-3">Adicionar Comentário</h4>
+                <form action="processar.php" method="POST">
+                    <input type="hidden" name="acao" value="add_comentario">
+                    <input type="hidden" name="chamado_id" value="<?= $chamado_id ?>">
+                    <div>
+                        <textarea name="comentario" rows="4" 
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" 
+                                  placeholder="Digite seu comentário..." required></textarea>
+                    </div>
+                    <div class="mt-3 text-right">
+                        <button type="submit" 
+                                class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-300">
+                            Enviar Comentário
+                        </button>
+                    </div>
+                </form>
+            <?php endif; ?>
+            </div>
 
     </div>
 
@@ -168,10 +177,9 @@ $lista_itens_estoque = $pdo->query($sql_itens)->fetchAll();
         
         <div class="bg-white shadow-md rounded-lg p-6">
             <h3 class="text-xl font-semibold mb-4 border-b pb-2">Informações</h3>
-            
             <div class="flex space-x-2 mb-4">
                 <?php 
-                $status_class = 'bg-gray-500 text-white'; // Padrão
+                $status_class = 'bg-gray-500 text-white'; 
                 if ($chamado['status_chamado'] == 'Aberto') $status_class = 'bg-red-500 text-white';
                 if ($chamado['status_chamado'] == 'Em Atendimento') $status_class = 'bg-yellow-500 text-black';
                 if ($chamado['status_chamado'] == 'Fechado') $status_class = 'bg-green-500 text-white';
@@ -180,7 +188,7 @@ $lista_itens_estoque = $pdo->query($sql_itens)->fetchAll();
                     Status: <?= htmlspecialchars($chamado['status_chamado']) ?>
                 </span>
                 <?php 
-                $p_class = 'bg-gray-500 text-white'; // Padrão
+                $p_class = 'bg-gray-500 text-white'; 
                 if ($chamado['prioridade'] == 'URGENTE') $p_class = 'bg-red-600 text-white';
                 elseif ($chamado['prioridade'] == 'ALTA') $p_class = 'bg-yellow-500 text-black';
                 elseif ($chamado['prioridade'] == 'MEDIA') $p_class = 'bg-blue-500 text-white';
@@ -190,7 +198,6 @@ $lista_itens_estoque = $pdo->query($sql_itens)->fetchAll();
                     Prioridade: <?= htmlspecialchars($chamado['prioridade']) ?>
                 </span>
             </div>
-
             <ul class="text-gray-700 space-y-2">
                 <li><strong>Autor:</strong> <?= htmlspecialchars($chamado['nome_autor']) ?></li>
                 <li><strong>Email:</strong> <?= htmlspecialchars($chamado['email_autor']) ?></li>
@@ -262,9 +269,13 @@ $lista_itens_estoque = $pdo->query($sql_itens)->fetchAll();
                         <label for="modelo_id" class="block text-gray-700 font-semibold mb-2">Item</label>
                         <select id="modelo_id" name="modelo_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg" required>
                             <option value="">[Selecione um item]</option>
-                            <?php foreach ($lista_itens_estoque as $item): ?>
-                                <option value="<?= $item['id_modelo'] ?>"><?= htmlspecialchars($item['nome']) ?></option>
-                            <?php endforeach; ?>
+                            <?php if (count($lista_itens_estoque) > 0): ?>
+                                <?php foreach ($lista_itens_estoque as $item): ?>
+                                    <option value="<?= $item['id_modelo'] ?>"><?= htmlspecialchars($item['nome']) ?></option>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <option value="" disabled>Nenhum item com estoque disponível</option>
+                            <?php endif; ?>
                         </select>
                     </div>
                     <div class="mb-4">
@@ -273,7 +284,8 @@ $lista_itens_estoque = $pdo->query($sql_itens)->fetchAll();
                                class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                     </div>
                     <button type="submit" 
-                            class="w-full bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition duration-300">
+                            class="w-full bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition duration-300"
+                            <?= (count($lista_itens_estoque) == 0) ? 'disabled' : '' ?>>
                         Dar Baixa no Estoque
                     </button>
                 </form>
