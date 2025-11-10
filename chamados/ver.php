@@ -1,21 +1,18 @@
 <?php
-// /chamados/ver.php
+// /chamados/ver.php (CORRIGIDO)
 
 // 1. Inclui o Header
 // $pdo, $base_url, $usuario_id_logado, $usuario_role_logado já estão disponíveis
 require_once '../includes/header.php'; // Sobe um nível
 
 // 2. Validação do ID
-// Pega o ID da URL (ex: ver.php?id=123)
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
-    // Se não houver ID ou não for um número, redireciona
     header("Location: {$base_url}/chamados/index.php");
     exit;
 }
 $chamado_id = (int)$_GET['id'];
 
 // --- BUSCA PRINCIPAL (DETALHES DO CHAMADO) ---
-// Query complexa para buscar TUDO sobre este chamado
 $sql = "SELECT 
             c.*, 
             u_autor.nome AS nome_autor,
@@ -36,7 +33,6 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute([$chamado_id]);
 $chamado = $stmt->fetch();
 
-// Se o chamado não for encontrado, redireciona
 if (!$chamado) {
     header("Location: {$base_url}/chamados/index.php");
     exit;
@@ -71,7 +67,20 @@ $sql_tecnicos = "SELECT id_usuario, nome FROM usuarios WHERE role IN ('TECNICO',
 $lista_tecnicos = $pdo->query($sql_tecnicos)->fetchAll();
 
 // --- BUSCA LISTA DE ITENS DE ESTOQUE (Para o <select>) ---
-$sql_itens = "SELECT id_modelo, nome FROM catalogo_modelos WHERE tipo = 'CONSUMIVEL' AND quantidade_em_estoque > 0";
+//
+// !!!!!!!!!!!!! A CORREÇÃO ESTÁ AQUI !!!!!!!!!!!!!
+//
+// A query agora usa o JOIN com 'categorias_ativo' e checa 'controla_estoque = true'
+//
+$sql_itens = "SELECT 
+                m.id_modelo, 
+                m.nome 
+            FROM catalogo_modelos m
+            JOIN categorias_ativo cat ON m.categoria_ativo_id = cat.id_categoria_ativo
+            WHERE 
+                cat.controla_estoque = true 
+                AND m.quantidade_em_estoque > 0
+            ORDER BY m.nome";
 $lista_itens_estoque = $pdo->query($sql_itens)->fetchAll();
 
 ?>
@@ -214,7 +223,7 @@ $lista_itens_estoque = $pdo->query($sql_itens)->fetchAll();
                             <option value="Aberto" <?= ($chamado['status_chamado'] == 'Aberto') ? 'selected' : '' ?>>Aberto</option>
                             <option value="Em Atendimento" <?= ($chamado['status_chamado'] == 'Em Atendimento') ? 'selected' : '' ?>>Em Atendimento</option>
                             <option value="Fechado" <?= ($chamado['status_chamado'] == 'Fechado') ? 'selected' : '' ?>>Fechado</option>
-                            </select>
+                        </select>
                     </div>
 
                     <div>

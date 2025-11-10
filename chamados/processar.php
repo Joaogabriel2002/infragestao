@@ -1,17 +1,32 @@
 <?php
-// /chamados/processar.php (ATUALIZADO)
+// /chamados/processar.php (CORRIGIDO)
 
-// 1. Inclui o Header (Segurança, Conexão, Sessão)
-require_once '../includes/header.php'; // Sobe um nível
+// 1. Inicia a sessão (essencial para a segurança)
+session_start();
 
-// 2. Verifica se os dados vieram via POST
+// 2. Define a URL base (para o redirect funcionar)
+// !! IMPORTANTE !! Verifique se o nome da sua pasta é 'infragestao'
+$base_url = "/infragestao";
+
+// 3. Inclui APENAS a conexão (só o $pdo, sem HTML)
+require_once $_SERVER['DOCUMENT_ROOT'] . $base_url . '/config/conexao.php';
+
+// 4. Pega os dados da SESSÃO
+if (!isset($_SESSION['usuario_id'])) {
+    header("Location: {$base_url}/login.php");
+    exit;
+}
+$usuario_id_logado = $_SESSION['usuario_id'];
+$usuario_role_logado = $_SESSION['usuario_role'];
+
+// 5. Verifica se os dados vieram via POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo "Acesso inválido.";
-    header('Location: index.php');
+    header("Location: {$base_url}/index.php");
     exit;
 }
 
-// 3. Pega a 'acao' e o 'chamado_id' (se existir)
+// 6. Pega a 'acao' e o 'chamado_id' (se existir)
 $acao = $_POST['acao'] ?? 'nenhuma';
 $chamado_id = (int)($_POST['chamado_id'] ?? 0); // Pega o ID do chamado (para ações de update)
 
@@ -27,7 +42,7 @@ if ($acao === 'novo_chamado') {
         $categoria_id = $_POST['categoria_id'];
         $prioridade = $_POST['prioridade'];
         $ativo_id = empty($_POST['ativo_id']) ? null : $_POST['ativo_id'];
-        $autor_id = $usuario_id_logado; // Vem do header
+        $autor_id = $usuario_id_logado; // Vem da sessão
 
         $sql = "INSERT INTO chamados 
                     (titulo, problema_relatado, autor_id, ativo_id, categoria_id, prioridade, status_chamado, dt_abertura)
@@ -56,7 +71,7 @@ if ($acao === 'novo_chamado') {
     }
 
 } elseif ($acao === 'add_comentario') {
-    // --- (NOVO) LÓGICA DE ADICIONAR COMENTÁRIO ---
+    // --- LÓGICA DE ADICIONAR COMENTÁRIO ---
     try {
         $comentario = $_POST['comentario'];
         
@@ -76,7 +91,7 @@ if ($acao === 'novo_chamado') {
     }
 
 } elseif ($acao === 'update_chamado') {
-    // --- (NOVO) LÓGICA DE ATUALIZAR STATUS/TÉCNICO ---
+    // --- LÓGICA DE ATUALIZAR STATUS/TÉCNICO ---
     try {
         // Coleta os dados do formulário de "Ações do Técnico"
         $status = $_POST['status'];
@@ -120,11 +135,7 @@ if ($acao === 'novo_chamado') {
     }
 
 } elseif ($acao === 'add_estoque') {
-    // --- (NOVO) LÓGICA DE BAIXA DE ESTOQUE (O TONER!) ---
-    
-    // Isto é crucial! Usamos uma "Transação".
-    // Ou os DOIS comandos funcionam (INSERT E UPDATE), ou NENHUM funciona.
-    // Isso evita que você dê baixa (INSERT) mas falhe em atualizar o total (UPDATE).
+    // --- LÓGICA DE BAIXA DE ESTOQUE (O TONER!) ---
     
     try {
         // Inicia a transação
@@ -172,7 +183,7 @@ if ($acao === 'novo_chamado') {
 } else {
     // Se a 'acao' não for reconhecida
     echo "Ação desconhecida.";
-    header('Location: index.php');
+    header("Location: {$base_url}/index.php");
     exit;
 }
 ?>

@@ -1,5 +1,5 @@
 <?php
-// /includes/sidebar.php
+// /includes/sidebar.php (ATUALIZADO E LIMPO)
 
 /*
  * Este arquivo é incluído pelo 'header.php'.
@@ -54,7 +54,19 @@
                 <li>
                     <a href="<?= $base_url ?>/estoque/index.php" 
                        class="block px-4 py-2 rounded-lg hover:bg-gray-700 hover:text-white transition duration-200">
-                       Gerenciar Catálogo/Estoque
+                       Catálogo/Estoque
+                    </a>
+                </li>
+                <li>
+                    <a href="<?= $base_url ?>/estoque/entrada.php" 
+                       class="block px-4 py-2 rounded-lg hover:bg-gray-700 hover:text-white transition duration-200">
+                       Registrar Entrada
+                    </a>
+                </li>
+                <li>
+                    <a href="<?= $base_url ?>/estoque/relatorio.php" 
+                       class="block px-4 py-2 rounded-lg hover:bg-gray-700 hover:text-white transition duration-200">
+                       Relatório de Estoque
                     </a>
                 </li>
             <?php endif; ?>
@@ -62,44 +74,13 @@
             <?php if ($usuario_role_logado == 'ADMIN'): ?>
                 <hr class="border-gray-600 my-2">
                 <li>
-                    <a href="<?= $base_url ?>/admin/usuarios/index.php" 
+                    <a href="<?= $base_url ?>/admin/index.php" 
                        class="block px-4 py-2 rounded-lg hover:bg-gray-700 hover:text-white transition duration-200">
-                       Admin: Usuários
-                    </a>
-                </li>
-                <li>
-                    <a href="<?= $base_url ?>/admin/unidades/index.php" 
-                       class="block px-4 py-2 rounded-lg hover:bg-gray-700 hover:text-white transition duration-200">
-                       Admin: Unidades (Locais)
-                    </a>
-                </li>
-                <li>
-                    <a href="<?= $base_url ?>/admin/setores/index.php" 
-                       class="block px-4 py-2 rounded-lg hover:bg-gray-700 hover:text-white transition duration-200">
-                       Admin: Setores (Deptos)
-                    </a>
-                </li>
-                 <li>
-                    <a href="<?= $base_url ?>/admin/categorias/index.php" 
-                       class="block px-4 py-2 rounded-lg hover:bg-gray-700 hover:text-white transition duration-200">
-                       Admin: Categorias (Chamados)
-                    </a>
-                </li>
-                <li>
-                    <a href="<?= $base_url ?>/admin/fornecedores/index.php" 
-                       class="block px-4 py-2 rounded-lg hover:bg-gray-700 hover:text-white transition duration-200">
-                       Admin: Fornecedores
-                    </a>
-                </li>
-                <hr class="border-gray-600 my-2">
-                <li>
-                    <a href="<?= $base_url ?>/admin/categorias_ativo/index.php" 
-                       class="block px-4 py-2 rounded-lg hover:bg-gray-700 hover:text-white transition duration-200">
-                       Admin: Categorias de Ativo
+                       Configurações Gerais
                     </a>
                 </li>
             <?php endif; ?>
 
         </ul>
-            </nav>
+    </nav>
 </aside>

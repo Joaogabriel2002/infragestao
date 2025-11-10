@@ -1,12 +1,11 @@
 <?php
-// /estoque/index.php
+// /estoque/index.php (ATUALIZADO COM LINK KARDEX)
 
 require_once '../includes/header.php'; // Sobe 1 nível
 
 // Segurança: Só Técnicos/Admins
 if ($usuario_role_logado == 'USUARIO') {
-    echo "<p>Acesso negado.</p>";
-    require_once '../includes/footer.php';
+    header("Location: {$base_url}/index.php");
     exit;
 }
 
@@ -30,12 +29,13 @@ $lista_categorias_ativo = $pdo->query("SELECT * FROM categorias_ativo ORDER BY n
 
 // Busca os modelos/itens já cadastrados
 $sql_modelos = "SELECT 
+                    m.id_modelo, -- (NOVO) Precisamos do ID para o link
                     m.nome, 
                     m.quantidade_em_estoque, 
                     c.nome_categoria,
                     c.controla_estoque
                 FROM catalogo_modelos m
-                JOIN categorias_ativo c ON m.categoria_ativo_id = c.id_categoria_ativo
+                LEFT JOIN categorias_ativo c ON m.categoria_ativo_id = c.id_categoria_ativo
                 ORDER BY c.nome_categoria, m.nome";
 $lista_modelos = $pdo->query($sql_modelos)->fetchAll();
 
@@ -70,7 +70,8 @@ $lista_modelos = $pdo->query($sql_modelos)->fetchAll();
                     </select>
                 </div>
                 <p class="text-sm text-gray-500 mb-4">
-                    Se a categoria não existe, cadastre-a primeiro (faremos essa tela em breve).
+                    Se a categoria não existe, cadastre-a em 
+                    <a href="<?= $base_url ?>/admin/categorias_ativo/index.php" class="text-blue-600 hover:underline">Admin: Categorias de Ativo</a>.
                 </p>
 
                 <button type="submit" 
@@ -90,18 +91,26 @@ $lista_modelos = $pdo->query($sql_modelos)->fetchAll();
                         <th class="py-2 px-4 text-left text-gray-600 font-semibold">Nome</th>
                         <th class="py-2 px-4 text-left text-gray-600 font-semibold">Categoria</th>
                         <th class="py-2 px-4 text-left text-gray-600 font-semibold">Estoque Atual</th>
-                    </tr>
+                        <th class="py-2 px-4 text-left text-gray-600 font-semibold">Ações</th> </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($lista_modelos as $modelo): ?>
                         <tr class="border-b">
                             <td class="py-2 px-4 font-medium"><?= htmlspecialchars($modelo['nome']) ?></td>
-                            <td class="py-2 px-4"><?= htmlspecialchars($modelo['nome_categoria']) ?></td>
+                            <td class="py-2 px-4"><?= htmlspecialchars($modelo['nome_categoria'] ?? 'Sem Categoria') ?></td>
                             <td class="py-2 px-4">
                                 <?php if ($modelo['controla_estoque']): ?>
                                     <span class="font-bold text-lg"><?= $modelo['quantidade_em_estoque'] ?></span>
                                 <?php else: ?>
                                     <span class="text-gray-400">N/A (Ativo)</span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="py-2 px-4">
+                                <?php if ($modelo['controla_estoque']): ?>
+                                    <a href="kardex.php?id=<?= $modelo['id_modelo'] ?>"
+                                       class="bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-sm hover:bg-gray-300">
+                                       Kardex
+                                    </a>
                                 <?php endif; ?>
                             </td>
                         </tr>
