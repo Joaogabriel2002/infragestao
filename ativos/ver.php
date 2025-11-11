@@ -1,17 +1,22 @@
 <?php
-// /ativos/ver.php (ATUALIZADO COM "DONO")
+// /ativos/ver.php (ATUALIZADO COM HISTÓRICO "ACORDEÃO")
 
 require_once '../includes/header.php'; // Sobe 1 nível
-if ($usuario_role_logado == 'USUARIO') { /* ... (Segurança) ... */ }
 
-// Validação do ID
-if (!isset($_GET['id']) || !is_numeric($_GET['id'])) { /* ... (Validação) ... */ }
+// Segurança: Só Técnicos/Admins
+if ($usuario_role_logado == 'USUARIO') {
+    header("Location: {$base_url}/index.php");
+    exit;
+}
+
+// 1. Validação do ID
+if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+    header("Location: {$base_url}/ativos/index.php");
+    exit;
+}
 $id_ativo = (int)$_GET['id'];
 
-// =======================================================
-// !! SQL PRINCIPAL ATUALIZADO !!
-// Adicionamos JOINs para buscar o nome do SETOR e do USUÁRIO (dono)
-// =======================================================
+// 2. Busca os dados do Ativo Específico (SQL v3.3 - Sem mudanças)
 $sql_ativo = "SELECT 
                 a.*, 
                 m.nome AS nome_modelo,
@@ -29,12 +34,30 @@ $sql_ativo = "SELECT
 $stmt_ativo = $pdo->prepare($sql_ativo);
 $stmt_ativo->execute([$id_ativo]);
 $ativo = $stmt_ativo->fetch();
-if (!$ativo) { /* ... (Validação) ... */ }
 
-// Busca o HISTÓRICO DE CHAMADOS (SQL existente)
-$sql_chamados = "SELECT c.id_chamado, c.titulo, c.status_chamado, c.dt_abertura, u_autor.nome AS nome_autor
+if (!$ativo) {
+    header("Location: {$base_url}/ativos/index.php");
+    exit;
+}
+
+// =======================================================
+// !! SQL DO HISTÓRICO ATUALIZADO !!
+// Buscando todos os campos necessários para o layout "acordeão"
+// =======================================================
+$sql_chamados = "SELECT 
+                    c.id_chamado,
+                    c.titulo,
+                    c.problema_relatado,
+                    c.solucao_aplicada,
+                    c.status_chamado,
+                    c.dt_abertura,
+                    c.dt_fechamento,
+                    c.prioridade,
+                    u_autor.nome AS nome_autor,
+                    cat.nome_categoria
                 FROM chamados c
                 LEFT JOIN usuarios u_autor ON c.autor_id = u_autor.id_usuario
+                LEFT JOIN categorias cat ON c.categoria_id = cat.id_categoria
                 WHERE c.ativo_id = ?
                 ORDER BY c.dt_abertura DESC";
 $stmt_chamados = $pdo->prepare($sql_chamados);
@@ -56,60 +79,74 @@ $historico_chamados = $stmt_chamados->fetchAll();
 
     <div class="lg:col-span-2 space-y-6">
         <div class="bg-white shadow-md rounded-lg p-6">
-            <h3 class="text-xl font-semibold mb-4 border-b pb-2">Histórico de Chamados</h3>
             
-            <div class="overflow-x-auto">
-                <table class="min-w-full bg-white">
-                    <thead class="bg-gray-100">
-                        <tr>
-                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">ID</th>
-                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">Título</th>
-                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">Autor</th>
-                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">Status</th>
-                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">Data</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (count($historico_chamados) > 0): ?>
-                            <?php foreach ($historico_chamados as $chamado): ?>
-                                <tr class="border-b">
-                                    <td class="py-2 px-4">
-                                        <a href="<?= $base_url ?>/chamados/ver.php?id=<?= $chamado['id_chamado'] ?>" 
-                                           class="text-blue-600 hover:underline font-medium">
-                                           #<?= $chamado['id_chamado'] ?>
-                                        </a>
-                                    </td>
-                                    <td class="py-2 px-4"><?= htmlspecialchars($chamado['titulo']) ?></td>
-                                    <td class="py-2 px-4"><?= htmlspecialchars($chamado['nome_autor']) ?></td>
-                                    <td class="py-2 px-4">
-                                        <?php 
-                                        $status_class = 'bg-gray-500 text-white'; 
-                                        if ($chamado['status_chamado'] == 'Aberto') $status_class = 'bg-red-500 text-white';
-                                        if ($chamado['status_chamado'] == 'Em Atendimento') $status_class = 'bg-yellow-500 text-black';
-                                        if ($chamado['status_chamado'] == 'Fechado') $status_class = 'bg-green-500 text-white';
-                                        ?>
-                                        <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded-full <?= $status_class ?>">
-                                            <?= htmlspecialchars($chamado['status_chamado']) ?>
-                                        </span>
-                                    </td>
-                                    <td class="py-2 px-4 text-sm text-gray-600">
-                                        <?= (new DateTime($chamado['dt_abertura']))->format('d/m/Y') ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <tr>
-                                <td colspan="5" class="py-6 text-center text-gray-500">
-                                    Nenhum chamado registrado para este ativo.
-                                </td>
-                            </tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="text-xl font-semibold">
+                    Histórico de Chamados (<?= count($historico_chamados) ?>)
+                </h3>
+                <a href="<?= $base_url ?>/chamados/novo.php?ativo_id=<?= $id_ativo ?>" 
+                   class="bg-blue-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-blue-700 text-sm">
+                   + Abrir Chamado
+                </a>
+            </div>
+
+            <div class="space-y-2">
+                <?php if (count($historico_chamados) > 0): ?>
+                    <?php foreach ($historico_chamados as $index => $chamado): ?>
+                        
+                        <details class="border rounded-lg" <?= ($index == 0) ? 'open' : '' ?>>
+                            
+                            <summary class="flex justify-between items-center p-3 cursor-pointer hover:bg-gray-50">
+                                <div class="flex items-center space-x-3">
+                                    <span class="font-medium text-gray-800">#<?= $chamado['id_chamado'] ?></span>
+                                    <span class="text-sm text-gray-600"><?= (new DateTime($chamado['dt_abertura']))->format('d/m/Y H:i') ?></span>
+                                    <?php 
+                                    $status_class = 'bg-gray-500 text-white'; 
+                                    if ($chamado['status_chamado'] == 'Aberto') $status_class = 'bg-red-500 text-white';
+                                    if ($chamado['status_chamado'] == 'Em Atendimento') $status_class = 'bg-yellow-500 text-black';
+                                    if ($chamado['status_chamado'] == 'Fechado') $status_class = 'bg-green-500 text-white';
+                                    ?>
+                                    <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded-full <?= $status_class ?>">
+                                        <?= htmlspecialchars($chamado['status_chamado']) ?>
+                                    </span>
+                                </div>
+                                <span class="text-gray-700 font-semibold truncate" style="max-width: 300px;">
+                                    <?= htmlspecialchars($chamado['titulo']) ?>
+                                </span>
+                            </summary>
+
+                            <div class="p-4 bg-gray-50 border-t">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <strong>Problema Relatado:</strong>
+                                        <p class="text-gray-700 whitespace-pre-wrap"><?= nl2br(htmlspecialchars($chamado['problema_relatado'])) ?></p>
+                                    </div>
+                                    <div>
+                                        <strong>Solução Aplicada:</strong>
+                                        <p class="text-green-700 whitespace-pre-wrap"><?= nl2br(htmlspecialchars($chamado['solucao_aplicada'] ?? 'Nenhuma solução registrada.')) ?></p>
+                                    </div>
+                                </div>
+                                <hr class="my-3">
+                                <div class="text-sm text-gray-600 space-y-1">
+                                    <p><strong>Autor:</strong> <?= htmlspecialchars($chamado['nome_autor']) ?></p>
+                                    <p><strong>Categoria:</strong> <?= htmlspecialchars($chamado['nome_categoria'] ?? 'N/A') ?></p>
+                                    <p><strong>Prioridade:</strong> <?= htmlspecialchars($chamado['prioridade']) ?></p>
+                                    <?php if ($chamado['dt_fechamento']): ?>
+                                        <p><strong>Fechado em:</strong> <?= (new DateTime($chamado['dt_fechamento']))->format('d/m/Y H:i') ?></p>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </details>
+                        
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div class="text-center text-gray-500 py-6">
+                        Nenhum chamado registrado para este ativo.
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
-
     <div class="lg:col-span-1 space-y-6">
         
         <div class="bg-white shadow-md rounded-lg p-6">
@@ -147,6 +184,7 @@ $historico_chamados = $stmt_chamados->fetchAll();
                         <span class="text-gray-500">Não alocado</span>
                     <?php endif; ?>
                 </li>
+
                 <li><strong>Local Físico (Unidade):</strong> <?= htmlspecialchars($ativo['nome_unidade']) ?></li>
                 <li><strong>Modelo:</strong> <?= htmlspecialchars($ativo['nome_modelo']) ?></li>
                 <li><strong>Tipo:</strong> <?= htmlspecialchars($ativo['nome_categoria_ativo']) ?></li>

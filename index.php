@@ -2,7 +2,6 @@
 // /index.php (Refatorado - Foco em Chamados)
 
 // 1. Inclui o Header
-// $pdo, $base_url, $usuario_role_logado, $usuario_id_logado já estão disponíveis
 require_once 'includes/header.php';
 
 // --- INÍCIO DAS CONSULTAS (Foco em Chamados) ---
@@ -10,15 +9,18 @@ require_once 'includes/header.php';
 // Prepara os parâmetros para as queries
 $params = [];
 $sql_where = "";
+$link_view_param = ""; // !! NOVO !! Parâmetro para os links
 
 // LÓGICA SQL PARA USUÁRIO COMUM
 if ($usuario_role_logado == 'USUARIO') {
     $sql_where = " WHERE autor_id = ?";
     $params = [$usuario_id_logado];
     $titulo_lista = "Meus Últimos Chamados";
+    // $link_view_param continua "" (vazio)
 } else {
 // LÓGICA SQL PARA TÉCNICO / ADMIN (Visão Global)
     $titulo_lista = "Últimos Chamados Urgentes (Global)";
+    $link_view_param = "&view=todos"; // !! NOVO !! Adiciona o parâmetro para os links
 }
 
 // --- Execução das Queries ---
@@ -34,7 +36,6 @@ $stmt_andamento = $pdo->prepare($sql_andamento);
 $stmt_andamento->execute($params);
 $total_andamento = $stmt_andamento->fetchColumn();
 
-// !! NOVO CARD !!
 $sql_fechado = "SELECT COUNT(*) FROM chamados WHERE status_chamado = 'Fechado'" . ($sql_where ? $sql_where : '');
 $stmt_fechado = $pdo->prepare($sql_fechado);
 $stmt_fechado->execute($params);
@@ -64,19 +65,19 @@ $chamados_recentes = $stmt_recentes->fetchAll();
     <div class="bg-red-500 shadow-lg rounded-lg p-6 text-white">
         <h5 class="text-lg font-semibold mb-2">Chamados Abertos</h5>
         <p class="text-5xl font-bold"><?= $total_abertos ?></p>
-        <a href="<?= $base_url ?>/chamados/index.php?status=Aberto" class="text-red-100 hover:text-white mt-4 inline-block">Ver Lista</a>
+        <a href="<?= $base_url ?>/chamados/index.php?status=Aberto<?= $link_view_param ?>" class="text-red-100 hover:text-white mt-4 inline-block">Ver Lista</a>
     </div>
     
     <div class="bg-yellow-400 shadow-lg rounded-lg p-6 text-gray-800">
         <h5 class="text-lg font-semibold mb-2">Em Atendimento</h5>
         <p class="text-5xl font-bold"><?= $total_andamento ?></p>
-        <a href="<?= $base_url ?>/chamados/index.php?status=Em Atendimento" class="text-yellow-700 hover:text-black mt-4 inline-block">Ver Lista</a>
+        <a href="<?= $base_url ?>/chamados/index.php?status=Em Atendimento<?= $link_view_param ?>" class="text-yellow-700 hover:text-black mt-4 inline-block">Ver Lista</a>
     </div>
 
     <div class="bg-green-500 shadow-lg rounded-lg p-6 text-white">
         <h5 class="text-lg font-semibold mb-2">Chamados Concluídos</h5>
         <p class="text-5xl font-bold"><?= $total_fechado ?></p>
-        <a href="<?= $base_url ?>/chamados/index.php" class="text-green-100 hover:text-white mt-4 inline-block">Ver Histórico</a>
+        <a href="<?= $base_url ?>/chamados/index.php?status=Fechado<?= $link_view_param ?>" class="text-green-100 hover:text-white mt-4 inline-block">Ver Histórico</a>
     </div>
 </div>
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
