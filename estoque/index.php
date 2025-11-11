@@ -1,5 +1,5 @@
 <?php
-// /estoque/index.php (ATUALIZADO COM LINK KARDEX)
+// /estoque/index.php (ATUALIZADO PARA MOSTRAR SÓ CONSUMÍVEIS)
 
 require_once '../includes/header.php'; // Sobe 1 nível
 
@@ -27,16 +27,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Busca as categorias de ativo (PC, Toner, etc.) para o <select>
 $lista_categorias_ativo = $pdo->query("SELECT * FROM categorias_ativo ORDER BY nome_categoria")->fetchAll();
 
-// Busca os modelos/itens já cadastrados
+// =======================================================
+// !! MUDANÇA NO SQL !!
+// Adicionamos "WHERE c.controla_estoque = true"
+// para que a lista mostre APENAS consumíveis.
+// =======================================================
 $sql_modelos = "SELECT 
-                    m.id_modelo, -- (NOVO) Precisamos do ID para o link
+                    m.id_modelo,
                     m.nome, 
                     m.quantidade_em_estoque, 
                     c.nome_categoria,
                     c.controla_estoque
                 FROM catalogo_modelos m
                 LEFT JOIN categorias_ativo c ON m.categoria_ativo_id = c.id_categoria_ativo
-                ORDER BY c.nome_categoria, m.nome";
+                WHERE c.controla_estoque = true 
+                ORDER BY m.nome";
 $lista_modelos = $pdo->query($sql_modelos)->fetchAll();
 
 ?>
@@ -84,37 +89,44 @@ $lista_modelos = $pdo->query($sql_modelos)->fetchAll();
 
     <div class="md:col-span-2">
         <div class="bg-white shadow-md rounded-lg p-6">
-            <h2 class="text-xl font-bold mb-4">Catálogo de Modelos e Estoque</h2>
+            
+            <h2 class="text-xl font-bold mb-4">Itens com Estoque (Consumíveis)</h2>
+            
             <table class="min-w-full bg-white">
                 <thead class="bg-gray-100">
                     <tr>
                         <th class="py-2 px-4 text-left text-gray-600 font-semibold">Nome</th>
                         <th class="py-2 px-4 text-left text-gray-600 font-semibold">Categoria</th>
                         <th class="py-2 px-4 text-left text-gray-600 font-semibold">Estoque Atual</th>
-                        <th class="py-2 px-4 text-left text-gray-600 font-semibold">Ações</th> </tr>
+                        <th class="py-2 px-4 text-left text-gray-600 font-semibold">Ações</th>
+                    </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($lista_modelos as $modelo): ?>
-                        <tr class="border-b">
-                            <td class="py-2 px-4 font-medium"><?= htmlspecialchars($modelo['nome']) ?></td>
-                            <td class="py-2 px-4"><?= htmlspecialchars($modelo['nome_categoria'] ?? 'Sem Categoria') ?></td>
-                            <td class="py-2 px-4">
-                                <?php if ($modelo['controla_estoque']): ?>
-                                    <span class="font-bold text-lg"><?= $modelo['quantidade_em_estoque'] ?></span>
-                                <?php else: ?>
-                                    <span class="text-gray-400">N/A (Ativo)</span>
-                                <?php endif; ?>
-                            </td>
-                            <td class="py-2 px-4">
-                                <?php if ($modelo['controla_estoque']): ?>
+                    <?php if (count($lista_modelos) > 0): ?>
+                        <?php foreach ($lista_modelos as $modelo): ?>
+                            <tr class="border-b">
+                                <td class="py-2 px-4 font-medium"><?= htmlspecialchars($modelo['nome']) ?></td>
+                                <td class="py-2 px-4"><?= htmlspecialchars($modelo['nome_categoria'] ?? 'Sem Categoria') ?></td>
+                                
+                                <td class="py-2 px-4">
+                                    <span class="font-bold text-lg <?= ($modelo['quantidade_em_estoque'] <= 0) ? 'text-red-600' : '' ?>">
+                                        <?= $modelo['quantidade_em_estoque'] ?>
+                                    </span>
+                                </td>
+
+                                <td class="py-2 px-4">
                                     <a href="kardex.php?id=<?= $modelo['id_modelo'] ?>"
                                        class="bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-sm hover:bg-gray-300">
                                        Kardex
                                     </a>
-                                <?php endif; ?>
-                            </td>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="4" class="py-4 text-center text-gray-500">Nenhum item de estoque (consumível) cadastrado.</td>
                         </tr>
-                    <?php endforeach; ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
