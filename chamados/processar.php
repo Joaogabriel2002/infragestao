@@ -1,5 +1,5 @@
 <?php
-// /chamados/processar.php (ATUALIZADO COM VALIDAÇÃO E ESTORNO)
+// /chamados/processar.php (ATUALIZADO COM REABERTURA)
 
 // 1. Inicia a sessão
 session_start();
@@ -20,7 +20,7 @@ $usuario_role_logado = $_SESSION['usuario_role'];
 
 // 5. Pega a 'acao' (POST ou GET)
 $acao = $_POST['acao'] ?? $_GET['acao'] ?? 'nenhuma';
-$chamado_id = (int)($_POST['chamado_id'] ?? $_GET['id'] ?? 0); // Pega o ID de qualquer forma
+$chamado_id = (int)($_POST['chamado_id'] ?? $_GET['id'] ?? 0); 
 
 // =======================================================
 // ROTEAMENTO DA AÇÃO
@@ -91,37 +91,28 @@ if ($acao === 'novo_chamado' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         die("Erro ao atualizar chamado: " . $e->getMessage());
     }
 
-// Ação 'add_estoque' (COM VALIDAÇÃO ANTI-NEGATIVO)
+// Ação 'add_estoque' (com validação anti-negativo)
 } elseif ($acao === 'add_estoque' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     
     try {
         $pdo->beginTransaction();
-
         $modelo_id = (int)$_POST['modelo_id'];
         $quantidade = (int)$_POST['quantidade'];
-        $quantidade_saida_abs = abs($quantidade); // Ex: 1
+        $quantidade_saida_abs = abs($quantidade); 
 
-        // =======================================================
-        // !! NOVA VALIDAÇÃO (ANTI-NEGATIVO) !!
-        // =======================================================
-        // 1. Busca o estoque atual ANTES de tentar subtrair
+        // Validação Anti-Negativo
         $stmt_check = $pdo->prepare("SELECT quantidade_em_estoque FROM catalogo_modelos WHERE id_modelo = ?");
         $stmt_check->execute([$modelo_id]);
         $estoque_atual = (int)$stmt_check->fetchColumn();
 
-        // 2. Verifica se a baixa deixará o estoque negativo
         if ($estoque_atual < $quantidade_saida_abs) {
-            // Se for negativo, reverte tudo e redireciona com erro
             $pdo->rollBack();
             header("Location: {$base_url}/chamados/ver.php?id={$chamado_id}&erro=estoque_insuficiente");
             exit;
         }
-        // =======================================================
-        // FIM DA VALIDAÇÃO
-        // =======================================================
 
-        // Se passou na validação, continua a baixa
-        $quantidade_saida_db = -abs($quantidade); // Ex: -1
+        // Continua a baixa
+        $quantidade_saida_db = -abs($quantidade); 
 
         // 1. INSERE O REGISTRO NO "LEDGER"
         $sql_mov = "INSERT INTO movimentacoes_estoque (modelo_id, chamado_id, usuario_id, quantidade, tipo_movimentacao, data_movimentacao) VALUES (?, ?, ?, ?, 'SAIDA_CHAMADO', NOW())";
@@ -142,27 +133,20 @@ if ($acao === 'novo_chamado' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         die("Erro ao dar baixa no estoque: " . $e->getMessage());
     }
 
-// =======================================================
-// !! NOVA AÇÃO (ESTORNO / DESVINCULAR) !!
-// =======================================================
+// Ação 'remover_estoque' (Estorno)
 } elseif ($acao === 'remover_estoque' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 
     try {
         $pdo->beginTransaction();
-        
         $movimentacao_id = (int)$_GET['mov_id'];
 
-        // 1. Busca os dados da movimentação (qual item e qual quantidade foi baixada)
+        // 1. Busca os dados da movimentação
         $stmt_mov = $pdo->prepare("SELECT modelo_id, quantidade FROM movimentacoes_estoque WHERE id_movimentacao = ?");
         $stmt_mov->execute([$movimentacao_id]);
         $mov = $stmt_mov->fetch();
 
-        if (!$mov) {
-            throw new Exception("Movimentação não encontrada.");
-        }
+        if (!$mov) { throw new Exception("Movimentação não encontrada."); }
 
-        // A quantidade no banco é negativa (ex: -1). 
-        // Precisamos do valor absoluto para REPOR (ex: 1)
         $quantidade_a_repor = abs($mov['quantidade']);
         $modelo_id = $mov['modelo_id'];
 
@@ -170,7 +154,7 @@ if ($acao === 'novo_chamado' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt_del = $pdo->prepare("DELETE FROM movimentacoes_estoque WHERE id_movimentacao = ?");
         $stmt_del->execute([$movimentacao_id]);
 
-        // 3. ATUALIZA O "CACHE" (Devolve o item ao estoque)
+        // 3. ATUALIZA O "CACHE" (Devolve o item)
         $sql_cat = "UPDATE catalogo_modelos SET quantidade_em_estoque = quantidade_em_estoque + (?) WHERE id_modelo = ?";
         $stmt_cat = $pdo->prepare($sql_cat);
         $stmt_cat->execute([$quantidade_a_repor, $modelo_id]);
@@ -182,6 +166,38 @@ if ($acao === 'novo_chamado' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (PDOException $e) {
         $pdo->rollBack();
         die("Erro ao estornar item: " . $e->getMessage());
+    }
+
+// =======================================================
+// !! NOVA AÇÃO (REABRIR CHAMADO) !!
+// =======================================================
+} elseif ($acao === 'reabrir_chamado' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    
+    // Segurança: Apenas ADMINS podem reabrir
+    if ($usuario_role_logado != 'ADMIN') {
+        die("Acesso negado.");
+    }
+    
+    try {
+        // Seta o status para Aberto e limpa a data de fechamento
+        $sql = "UPDATE chamados SET 
+                    status_chamado = 'Aberto',
+                    dt_fechamento = NULL
+                WHERE id_chamado = ?";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$chamado_id]);
+
+        // Adiciona um comentário automático
+        $comentario = "CHAMADO REABERTO PELO ADMINISTRADOR.";
+        $sql_com = "INSERT INTO chamado_atualizacoes (chamado_id, autor_id, comentario, dt_atualizacao) VALUES (?, ?, ?, NOW())";
+        $pdo->prepare($sql_com)->execute([$chamado_id, $usuario_id_logado, $comentario]);
+        
+        header("Location: {$base_url}/chamados/ver.php?id={$chamado_id}&sucesso=reaberto");
+        exit;
+
+    } catch (PDOException $e) {
+        die("Erro ao reabrir chamado: " . $e->getMessage());
     }
 
 } else {

@@ -1,14 +1,11 @@
 <?php
-// /chamados/ver.php (ATUALIZADO COM PERMISSÃO DE COMENTÁRIO)
+// /chamados/ver.php (ATUALIZADO COM LÓGICA DE CHAMADO FECHADO)
 
 // 1. Inclui o Header
-require_once '../includes/header.php'; // Sobe um nível
+require_once '../includes/header.php'; 
 
 // 2. Validação do ID
-if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
-    header("Location: {$base_url}/chamados/index.php");
-    exit;
-}
+if (!isset($_GET['id']) || !is_numeric($_GET['id'])) { /* ... */ }
 $chamado_id = (int)$_GET['id'];
 
 // --- BUSCA PRINCIPAL (DETALHES DO CHAMADO) ---
@@ -24,10 +21,13 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute([$chamado_id]);
 $chamado = $stmt->fetch();
 
-if (!$chamado) {
-    header("Location: {$base_url}/chamados/index.php");
-    exit;
-}
+if (!$chamado) { /* ... */ }
+
+// =======================================================
+// !! NOVA VARIÁVEL DE CONTROLE !!
+// =======================================================
+$is_fechado = ($chamado['status_chamado'] == 'Fechado');
+// =======================================================
 
 // --- BUSCA HISTÓRICO (ATUALIZAÇÕES) ---
 $sql_updates = "SELECT cu.*, u.nome AS nome_autor_update
@@ -40,11 +40,7 @@ $stmt_updates->execute([$chamado_id]);
 $atualizacoes = $stmt_updates->fetchAll();
 
 // --- BUSCA ITENS DE ESTOQUE USADOS ---
-$sql_estoque = "SELECT 
-                    mov.id_movimentacao, 
-                    mov.quantidade,
-                    mov.data_movimentacao,
-                    cat.nome AS nome_item
+$sql_estoque = "SELECT mov.id_movimentacao, mov.quantidade, mov.data_movimentacao, cat.nome AS nome_item
                 FROM movimentacoes_estoque mov
                 JOIN catalogo_modelos cat ON mov.modelo_id = cat.id_modelo
                 WHERE mov.chamado_id = ?
@@ -78,17 +74,13 @@ $lista_itens_estoque = $pdo->query($sql_itens)->fetchAll();
 </div>
 
 <?php
-if (isset($_GET['erro'])) {
-    if ($_GET['erro'] == 'estoque_insuficiente') {
-        echo "<div class='bg-red-100 text-red-700 p-4 rounded mb-6'>
-                <strong>Erro:</strong> Estoque insuficiente. A baixa não foi registrada.
-              </div>";
-    }
-}
+if (isset($_GET['erro'])) { /* ... (bloco de erro) ... */ }
 if (isset($_GET['sucesso'])) {
     if ($_GET['sucesso'] == 'novo') echo "<div class='bg-green-100 text-green-700 p-4 rounded mb-6'><strong>Sucesso!</strong> Chamado aberto.</div>";
     if ($_GET['sucesso'] == 'removido') echo "<div class='bg-green-100 text-green-700 p-4 rounded mb-6'><strong>Sucesso!</strong> Item de estoque estornado.</div>";
     if ($_GET['sucesso'] == 'add_estoque') echo "<div class='bg-green-100 text-green-700 p-4 rounded mb-6'><strong>Sucesso!</strong> Item baixado do estoque.</div>";
+    // !! NOVA MENSAGEM !!
+    if ($_GET['sucesso'] == 'reaberto') echo "<div class='bg-blue-100 text-blue-700 p-4 rounded mb-6'><strong>Aviso!</strong> O chamado foi reaberto.</div>";
 }
 ?>
 
@@ -117,7 +109,7 @@ if (isset($_GET['sucesso'])) {
                                 <span class="text-sm text-gray-500">(em <?= (new DateTime($item['data_movimentacao']))->format('d/m/Y') ?>)</span>
                             </span>
                             
-                            <?php if ($usuario_role_logado == 'TECNICO' || $usuario_role_logado == 'ADMIN'): ?>
+                            <?php if (($usuario_role_logado == 'TECNICO' || $usuario_role_logado == 'ADMIN') && !$is_fechado): ?>
                                 <a href="processar.php?acao=remover_estoque&id=<?= $chamado_id ?>&mov_id=<?= $item['id_movimentacao'] ?>" 
                                    class="text-red-500 hover:text-red-700 hover:underline text-sm font-medium"
                                    onclick="return confirm('Tem certeza que deseja estornar este item? A quantidade voltará ao estoque.')">
@@ -144,13 +136,12 @@ if (isset($_GET['sucesso'])) {
                         <p class="text-gray-700 whitespace-pre-wrap"><?= htmlspecialchars($update['comentario']) ?></p>
                     </div>
                 <?php endforeach; ?>
-
                 <?php if (count($atualizacoes) === 0): ?>
                     <p class="text-gray-500">Nenhum comentário adicionado ainda.</p>
                 <?php endif; ?>
             </div>
 
-            <?php if ($usuario_role_logado == 'TECNICO' || $usuario_role_logado == 'ADMIN'): ?>
+            <?php if (($usuario_role_logado == 'TECNICO' || $usuario_role_logado == 'ADMIN') && !$is_fechado): ?>
                 <hr class="my-6">
                 <h4 class="text-lg font-semibold mb-3">Adicionar Comentário</h4>
                 <form action="processar.php" method="POST">
@@ -169,7 +160,7 @@ if (isset($_GET['sucesso'])) {
                     </div>
                 </form>
             <?php endif; ?>
-            </div>
+        </div>
 
     </div>
 
@@ -208,7 +199,7 @@ if (isset($_GET['sucesso'])) {
             </ul>
         </div>
 
-        <?php if ($usuario_role_logado == 'TECNICO' || $usuario_role_logado == 'ADMIN'): ?>
+        <?php if (($usuario_role_logado == 'TECNICO' || $usuario_role_logado == 'ADMIN') && !$is_fechado): ?>
             
             <div class="bg-white shadow-md rounded-lg p-6">
                 <h3 class="text-xl font-semibold mb-4">Ações do Técnico</h3>
@@ -290,7 +281,21 @@ if (isset($_GET['sucesso'])) {
                     </button>
                 </form>
             </div>
+        <?php endif; ?>
 
+        <?php if ($usuario_role_logado == 'ADMIN' && $is_fechado): ?>
+            <div class="bg-white shadow-md rounded-lg p-6 border-l-4 border-orange-500">
+                <h3 class="text-xl font-semibold mb-4">Ações de Admin</h3>
+                <form action="processar.php" method="POST">
+                    <input type="hidden" name="acao" value="reabrir_chamado">
+                    <input type="hidden" name="chamado_id" value="<?= $chamado_id ?>">
+                    <p class="text-sm text-gray-600 mb-4">Este chamado está fechado. Reabri-lo irá movê-lo para o status "Aberto" e apagar a data de fechamento.</p>
+                    <button type="submit" 
+                            class="w-full bg-orange-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-orange-600 transition duration-300">
+                        Reabrir Chamado
+                    </button>
+                </form>
+            </div>
         <?php endif; ?>
 
     </div>

@@ -135,4 +135,4 @@ $lista_modelos = $pdo->query($sql_modelos)->fetchAll();
 
 <?php
 require_once '../includes/footer.php'; // Sobe 1 nível
-?>
+?>  

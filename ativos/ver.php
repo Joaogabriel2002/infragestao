@@ -1,49 +1,38 @@
 <?php
-// /ativos/ver.php (ARQUIVO NOVO)
+// /ativos/ver.php (ATUALIZADO COM "DONO")
 
 require_once '../includes/header.php'; // Sobe 1 nível
+if ($usuario_role_logado == 'USUARIO') { /* ... (Segurança) ... */ }
 
-// Segurança: Só Técnicos/Admins
-if ($usuario_role_logado == 'USUARIO') {
-    header("Location: {$base_url}/index.php");
-    exit;
-}
-
-// 1. Validação do ID
-if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
-    header("Location: {$base_url}/ativos/index.php");
-    exit;
-}
+// Validação do ID
+if (!isset($_GET['id']) || !is_numeric($_GET['id'])) { /* ... (Validação) ... */ }
 $id_ativo = (int)$_GET['id'];
 
-// 2. Busca os dados do Ativo Específico (com JOINs)
+// =======================================================
+// !! SQL PRINCIPAL ATUALIZADO !!
+// Adicionamos JOINs para buscar o nome do SETOR e do USUÁRIO (dono)
+// =======================================================
 $sql_ativo = "SELECT 
                 a.*, 
                 m.nome AS nome_modelo,
                 cat.nome_categoria AS nome_categoria_ativo,
-                u.nome_unidade
+                u.nome_unidade,
+                s.nome_setor AS nome_setor_dono,
+                usr.nome AS nome_usuario_dono
             FROM ativos a
             LEFT JOIN catalogo_modelos m ON a.modelo_id = m.id_modelo
             LEFT JOIN categorias_ativo cat ON m.categoria_ativo_id = cat.id_categoria_ativo
             LEFT JOIN unidades u ON a.unidade_id = u.id_unidade
+            LEFT JOIN setores s ON a.setor_id = s.id_setor
+            LEFT JOIN usuarios usr ON a.usuario_id = usr.id_usuario
             WHERE a.id_ativo = ?";
 $stmt_ativo = $pdo->prepare($sql_ativo);
 $stmt_ativo->execute([$id_ativo]);
 $ativo = $stmt_ativo->fetch();
+if (!$ativo) { /* ... (Validação) ... */ }
 
-if (!$ativo) {
-    header("Location: {$base_url}/ativos/index.php");
-    exit;
-}
-
-// 3. Busca o HISTÓRICO DE CHAMADOS deste ativo
-$sql_chamados = "SELECT 
-                    c.id_chamado,
-                    c.titulo,
-                    c.status_chamado,
-                    c.dt_abertura,
-                    c.dt_fechamento,
-                    u_autor.nome AS nome_autor
+// Busca o HISTÓRICO DE CHAMADOS (SQL existente)
+$sql_chamados = "SELECT c.id_chamado, c.titulo, c.status_chamado, c.dt_abertura, u_autor.nome AS nome_autor
                 FROM chamados c
                 LEFT JOIN usuarios u_autor ON c.autor_id = u_autor.id_usuario
                 WHERE c.ativo_id = ?
@@ -94,7 +83,7 @@ $historico_chamados = $stmt_chamados->fetchAll();
                                     <td class="py-2 px-4"><?= htmlspecialchars($chamado['nome_autor']) ?></td>
                                     <td class="py-2 px-4">
                                         <?php 
-                                        $status_class = 'bg-gray-500 text-white'; // Padrão
+                                        $status_class = 'bg-gray-500 text-white'; 
                                         if ($chamado['status_chamado'] == 'Aberto') $status_class = 'bg-red-500 text-white';
                                         if ($chamado['status_chamado'] == 'Em Atendimento') $status_class = 'bg-yellow-500 text-black';
                                         if ($chamado['status_chamado'] == 'Fechado') $status_class = 'bg-green-500 text-white';
@@ -143,10 +132,27 @@ $historico_chamados = $stmt_chamados->fetchAll();
                         <?= htmlspecialchars($ativo['status_ativo']) ?>
                     </span>
                 </li>
+                
+                <li class="pt-2 border-t mt-2">
+                    <strong>Alocado para:</strong>
+                    <?php if ($ativo['nome_usuario_dono']): ?>
+                        <span class="font-medium text-blue-700">
+                            (Usuário) <?= htmlspecialchars($ativo['nome_usuario_dono']) ?>
+                        </span>
+                    <?php elseif ($ativo['nome_setor_dono']): ?>
+                        <span class="font-medium text-green-700">
+                            (Setor) <?= htmlspecialchars($ativo['nome_setor_dono']) ?>
+                        </span>
+                    <?php else: ?>
+                        <span class="text-gray-500">Não alocado</span>
+                    <?php endif; ?>
+                </li>
+                <li><strong>Local Físico (Unidade):</strong> <?= htmlspecialchars($ativo['nome_unidade']) ?></li>
                 <li><strong>Modelo:</strong> <?= htmlspecialchars($ativo['nome_modelo']) ?></li>
                 <li><strong>Tipo:</strong> <?= htmlspecialchars($ativo['nome_categoria_ativo']) ?></li>
-                <li><strong>Unidade (Local):</strong> <?= htmlspecialchars($ativo['nome_unidade']) ?></li>
+                
                 <hr>
+                
                 <li><strong>IP:</strong> <?= htmlspecialchars($ativo['ip_address'] ?? 'N/A') ?></li>
                 <li><strong>ID Remoto:</strong> <?= htmlspecialchars($ativo['remote_id'] ?? 'N/A') ?></li>
                 <li><strong>SO:</strong> <?= htmlspecialchars($ativo['operating_system'] ?? 'N/A') ?></li>

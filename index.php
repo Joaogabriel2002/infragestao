@@ -1,92 +1,65 @@
 <?php
-// /index.php (O Dashboard - VERSÃO FINAL COM PERMISSÕES)
+// /index.php (Refatorado - Foco em Chamados)
 
 // 1. Inclui o Header
 // $pdo, $base_url, $usuario_role_logado, $usuario_id_logado já estão disponíveis
 require_once 'includes/header.php';
 
-// --- INÍCIO DAS CONSULTAS (AGORA SÃO DINÂMICAS) ---
+// --- INÍCIO DAS CONSULTAS (Foco em Chamados) ---
 
 // Prepara os parâmetros para as queries
-$params_abertos = [];
-$params_andamento = [];
-$params_recentes = [];
-$sql_recentes_join_ativo = "LEFT JOIN ativos a ON c.ativo_id = a.id_ativo
-                            LEFT JOIN unidades u ON a.unidade_id = u.id_unidade";
+$params = [];
+$sql_where = "";
 
 // LÓGICA SQL PARA USUÁRIO COMUM
 if ($usuario_role_logado == 'USUARIO') {
-    
-    // Contagem de chamados ABERTOS (só dele)
-    $sql_abertos = "SELECT COUNT(*) FROM chamados WHERE status_chamado = 'Aberto' AND autor_id = ?";
-    $params_abertos = [$usuario_id_logado];
-    
-    // Contagem de chamados EM ATENDIMENTO (só dele)
-    $sql_andamento = "SELECT COUNT(*) FROM chamados WHERE status_chamado = 'Em Atendimento' AND autor_id = ?";
-    $params_andamento = [$usuario_id_logado];
-
-    // Lista de chamados recentes (só dele)
-    $sql_recentes_where = "WHERE (c.status_chamado = 'Aberto' OR c.status_chamado = 'Em Atendimento') AND c.autor_id = ?";
-    $params_recentes = [$usuario_id_logado];
-
-    // Usuário não vê contagem de ativos
-    $total_ativos = 0;
-    $total_manutencao = 0;
-
+    $sql_where = " WHERE autor_id = ?";
+    $params = [$usuario_id_logado];
+    $titulo_lista = "Meus Últimos Chamados";
 } else {
 // LÓGICA SQL PARA TÉCNICO / ADMIN (Visão Global)
-    
-    // Contagem de chamados ABERTOS (Global)
-    $sql_abertos = "SELECT COUNT(*) FROM chamados WHERE status_chamado = 'Aberto'";
-    
-    // Contagem de chamados EM ATENDIMENTO (Global)
-    $sql_andamento = "SELECT COUNT(*) FROM chamados WHERE status_chamado = 'Em Atendimento'";
-    
-    // Contagem de Ativos (só para admin/tecnico)
-    $stmt_ativos = $pdo->query("SELECT COUNT(*) FROM ativos");
-    $total_ativos = $stmt_ativos->fetchColumn();
-    $stmt_manutencao = $pdo->query("SELECT COUNT(*) FROM ativos WHERE status_ativo = 'EM_MANUTENCAO'");
-    $total_manutencao = $stmt_manutencao->fetchColumn();
-
-    // Lista de chamados recentes (Global)
-    $sql_recentes_where = "WHERE (c.status_chamado = 'Aberto' OR c.status_chamado = 'Em Atendimento')";
+    $titulo_lista = "Últimos Chamados Urgentes (Global)";
 }
 
 // --- Execução das Queries ---
 
 // 2. Contagem de Chamados
+$sql_abertos = "SELECT COUNT(*) FROM chamados WHERE status_chamado = 'Aberto'" . ($sql_where ? $sql_where : '');
 $stmt_abertos = $pdo->prepare($sql_abertos);
-$stmt_abertos->execute($params_abertos);
+$stmt_abertos->execute($params);
 $total_abertos = $stmt_abertos->fetchColumn();
 
+$sql_andamento = "SELECT COUNT(*) FROM chamados WHERE status_chamado = 'Em Atendimento'" . ($sql_where ? $sql_where : '');
 $stmt_andamento = $pdo->prepare($sql_andamento);
-$stmt_andamento->execute($params_andamento);
+$stmt_andamento->execute($params);
 $total_andamento = $stmt_andamento->fetchColumn();
 
+// !! NOVO CARD !!
+$sql_fechado = "SELECT COUNT(*) FROM chamados WHERE status_chamado = 'Fechado'" . ($sql_where ? $sql_where : '');
+$stmt_fechado = $pdo->prepare($sql_fechado);
+$stmt_fechado->execute($params);
+$total_fechado = $stmt_fechado->fetchColumn();
+
+
 // 4. Buscar os 5 últimos chamados (com a lógica condicional)
-$sql_recentes = "SELECT 
-                    c.id_chamado,
-                    c.titulo,
-                    c.prioridade,
-                    a.nome_ativo,
-                    u.nome_unidade
+$sql_recentes_join_ativo = "LEFT JOIN ativos a ON c.ativo_id = a.id_ativo
+                            LEFT JOIN unidades u ON a.unidade_id = u.id_unidade";
+$sql_recentes_where = ($sql_where ? $sql_where . " AND " : " WHERE ") . "(c.status_chamado = 'Aberto' OR c.status_chamado = 'Em Atendimento')";
+
+$sql_recentes = "SELECT c.id_chamado, c.titulo, c.prioridade, a.nome_ativo, u.nome_unidade
                 FROM chamados c
                 $sql_recentes_join_ativo
                 $sql_recentes_where
                 ORDER BY c.dt_abertura DESC
                 LIMIT 5";
 $stmt_recentes = $pdo->prepare($sql_recentes);
-$stmt_recentes->execute($params_recentes);
+$stmt_recentes->execute($params);
 $chamados_recentes = $stmt_recentes->fetchAll();
 
 // --- FIM DAS CONSULTAS ---
 ?>
 
-<?php if ($usuario_role_logado == 'USUARIO'): ?>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-<?php else: ?>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-<?php endif; ?>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
 
     <div class="bg-red-500 shadow-lg rounded-lg p-6 text-white">
         <h5 class="text-lg font-semibold mb-2">Chamados Abertos</h5>
@@ -100,19 +73,11 @@ $chamados_recentes = $stmt_recentes->fetchAll();
         <a href="<?= $base_url ?>/chamados/index.php?status=Em Atendimento" class="text-yellow-700 hover:text-black mt-4 inline-block">Ver Lista</a>
     </div>
 
-    <?php if ($usuario_role_logado != 'USUARIO'): ?>
-        <div class="bg-blue-400 shadow-lg rounded-lg p-6 text-white">
-            <h5 class="text-lg font-semibold mb-2">Ativos em Manutenção</h5>
-            <p class="text-5xl font-bold"><?= $total_manutencao ?></p>
-            <a href="<?= $base_url ?>/ativos/index.php" class="text-blue-100 hover:text-white mt-4 inline-block">Ver Inventário</a>
-        </div>
-
-        <div class="bg-gray-700 shadow-lg rounded-lg p-6 text-white">
-            <h5 class="text-lg font-semibold mb-2">Total de Ativos</h5>
-            <p class="text-5xl font-bold"><?= $total_ativos ?></p>
-            <a href="<?= $base_ci ?>/ativos/index.php" class="text-gray-300 hover:text-white mt-4 inline-block">Ver Inventário</a>
-        </div>
-    <?php endif; ?>
+    <div class="bg-green-500 shadow-lg rounded-lg p-6 text-white">
+        <h5 class="text-lg font-semibold mb-2">Chamados Concluídos</h5>
+        <p class="text-5xl font-bold"><?= $total_fechado ?></p>
+        <a href="<?= $base_url ?>/chamados/index.php" class="text-green-100 hover:text-white mt-4 inline-block">Ver Histórico</a>
+    </div>
 </div>
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -134,11 +99,8 @@ $chamados_recentes = $stmt_recentes->fetchAll();
                 <?php endif; ?>
                 
                 <?php if ($usuario_role_logado == 'ADMIN'): ?>
-                <a href="<?= $base_url ?>/admin/unidades/index.php" class="w-full text-center bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-300">
-                    Gerenciar Unidades
-                </a>
-                <a href="<?= $base_url ?>/admin/categorias/index.php" class="w-full text-center bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-300">
-                    Gerenciar Categorias
+                <a href="<?= $base_url ?>/admin/index.php" class="w-full text-center bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-300">
+                    Configurações Gerais
                 </a>
                 <?php endif; ?>
             </div>
@@ -148,11 +110,7 @@ $chamados_recentes = $stmt_recentes->fetchAll();
     <div class="lg:col-span-2 bg-white shadow-md rounded-lg overflow-hidden">
         <div class="p-4 border-b border-gray-200">
             <h3 class="text-xl font-semibold">
-                <?php if ($usuario_role_logado == 'USUARIO'): ?>
-                    Meus Últimos Chamados
-                <?php else: ?>
-                    Últimos Chamados Urgentes (Global)
-                <?php endif; ?>
+                <?= $titulo_lista ?>
             </h3>
         </div>
         <div class="p-4">
@@ -184,7 +142,6 @@ $chamados_recentes = $stmt_recentes->fetchAll();
                             </td>
                         </tr>
                     <?php endforeach; ?>
-
                     <?php if (count($chamados_recentes) === 0): ?>
                         <tr>
                             <td colspan="2" class="py-4 text-center text-gray-500">
@@ -199,6 +156,5 @@ $chamados_recentes = $stmt_recentes->fetchAll();
 </div>
 
 <?php
-// 3. Inclui o footer
 require_once 'includes/footer.php';
 ?>

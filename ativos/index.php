@@ -1,5 +1,5 @@
 <?php
-// /ativos/index.php (ATUALIZADO COM LINK "VER")
+// /ativos/index.php (Refatorado - AGORA É UM DASHBOARD)
 
 require_once '../includes/header.php'; // Sobe 1 nível
 
@@ -10,13 +10,23 @@ if ($usuario_role_logado == 'USUARIO') {
     exit;
 }
 
-// Busca dos Ativos no Banco
+// =======================================================
+// !! NOVO: CONSULTAS PARA O DASHBOARD DE ATIVOS !!
+// =======================================================
+$stmt_total = $pdo->query("SELECT COUNT(*) FROM ativos");
+$total_ativos = $stmt_total->fetchColumn();
+
+$stmt_manutencao = $pdo->query("SELECT COUNT(*) FROM ativos WHERE status_ativo = 'EM_MANUTENCAO'");
+$total_manutencao = $stmt_manutencao->fetchColumn();
+
+$stmt_baixado = $pdo->query("SELECT COUNT(*) FROM ativos WHERE status_ativo = 'BAIXADO'");
+$total_baixado = $stmt_baixado->fetchColumn();
+// =======================================================
+
+
+// Busca dos Ativos no Banco (para a lista)
 $sql = "SELECT 
-            a.id_ativo,
-            a.nome_ativo,
-            a.patrimonio,
-            a.ip_address,
-            a.status_ativo,
+            a.id_ativo, a.nome_ativo, a.patrimonio, a.ip_address, a.status_ativo,
             m.nome AS nome_modelo,
             cat_a.nome_categoria AS nome_tipo,
             u.nome_unidade
@@ -25,20 +35,41 @@ $sql = "SELECT
         LEFT JOIN unidades u ON a.unidade_id = u.id_unidade
         LEFT JOIN categorias_ativo cat_a ON m.categoria_ativo_id = cat_a.id_categoria_ativo
         ORDER BY u.nome_unidade, a.nome_ativo";
-
 $stmt = $pdo->query($sql);
 $lista_ativos = $stmt->fetchAll();
 
 ?>
 
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+    
+    <div class="bg-gray-700 shadow-lg rounded-lg p-6 text-white">
+        <h5 class="text-lg font-semibold mb-2">Total de Ativos</h5>
+        <p class="text-5xl font-bold"><?= $total_ativos ?></p>
+        <span class="text-gray-300 mt-4 inline-block">Inventário completo</span>
+    </div>
+
+    <div class="bg-blue-400 shadow-lg rounded-lg p-6 text-white">
+        <h5 class="text-lg font-semibold mb-2">Em Manutenção</h5>
+        <p class="text-5xl font-bold"><?= $total_manutencao ?></p>
+         <span class="text-blue-100 mt-4 inline-block">Ativos em reparo</span>
+    </div>
+
+    <div class="bg-gray-400 shadow-lg rounded-lg p-6 text-white">
+        <h5 class="text-lg font-semibold mb-2">Baixados / Descartados</h5>
+        <p class="text-5xl font-bold"><?= $total_baixado ?></p>
+         <span class="text-gray-200 mt-4 inline-block">Fora de operação</span>
+    </div>
+
+    <a href="<?= $base_url ?>/ativos/novo.php" 
+       class="bg-green-500 shadow-lg rounded-lg p-6 text-white flex flex-col justify-center items-center hover:bg-green-600 transition-all duration-300">
+        <span class="text-5xl font-bold">+</span>
+        <h5 class="text-lg font-semibold mt-2">Cadastrar Novo Ativo</h5>
+    </a>
+</div>
 <div class="bg-white shadow-md rounded-lg p-6">
     <div class="flex justify-between items-center mb-6">
         <h2 class="text-2xl font-bold">Inventário de Ativos</h2>
-        <a href="<?= $base_url ?>/ativos/novo.php" 
-           class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-300">
-           + Novo Ativo
-        </a>
-    </div>
+        </div>
 
     <div class="overflow-x-auto">
         <table class="min-w-full bg-white">
