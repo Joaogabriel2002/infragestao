@@ -1,19 +1,16 @@
 <?php
-// /ativos/index.php
+// /ativos/index.php (ATUALIZADO COM LINK "VER")
 
-// 1. Inclui o Header
-require_once '../includes/header.php'; // Sobe um nível
+require_once '../includes/header.php'; // Sobe 1 nível
 
-// 2. Lógica de Segurança (Opcional, mas recomendado)
-// Se o usuário for comum, não deve ver o inventário
+// Segurança
 if ($usuario_role_logado == 'USUARIO') {
     echo "<p>Acesso negado.</p>";
     require_once '../includes/footer.php';
     exit;
 }
 
-// 3. Busca dos Ativos no Banco
-// (Este é o JOIN que usa nossa nova estrutura)
+// Busca dos Ativos no Banco
 $sql = "SELECT 
             a.id_ativo,
             a.nome_ativo,
@@ -25,9 +22,8 @@ $sql = "SELECT
             u.nome_unidade
         FROM ativos a
         JOIN catalogo_modelos m ON a.modelo_id = m.id_modelo
-        JOIN unidades u ON a.unidade_id = u.id_unidade
-        -- Nosso novo JOIN para a categoria dinâmica
-        JOIN categorias_ativo cat_a ON m.categoria_ativo_id = cat_a.id_categoria_ativo
+        LEFT JOIN unidades u ON a.unidade_id = u.id_unidade
+        LEFT JOIN categorias_ativo cat_a ON m.categoria_ativo_id = cat_a.id_categoria_ativo
         ORDER BY u.nome_unidade, a.nome_ativo";
 
 $stmt = $pdo->query($sql);
@@ -68,7 +64,7 @@ $lista_ativos = $stmt->fetchAll();
                                 </div>
                             </td>
                             
-                            <td class="py-3 px-4 text-gray-700"><?= htmlspecialchars($ativo['nome_tipo']) ?></td>
+                            <td class="py-3 px-4 text-gray-700"><?= htmlspecialchars($ativo['nome_tipo'] ?? 'N/A') ?></td>
                             <td class="py-3 px-4 text-gray-700"><?= htmlspecialchars($ativo['nome_unidade']) ?></td>
                             <td class="py-3 px-4 text-gray-700"><?= htmlspecialchars($ativo['ip_address'] ?? 'N/A') ?></td>
                             
@@ -83,7 +79,11 @@ $lista_ativos = $stmt->fetchAll();
                                 </span>
                             </td>
 
-                            <td class="py-3 px-4">
+                            <td class="py-3 px-4 space-x-2">
+                                <a href="<?= $base_url ?>/ativos/ver.php?id=<?= $ativo['id_ativo'] ?>" 
+                                   class="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg text-sm hover:bg-blue-200">
+                                   Ver
+                                </a>
                                 <a href="<?= $base_url ?>/ativos/editar.php?id=<?= $ativo['id_ativo'] ?>" 
                                    class="bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-sm hover:bg-gray-300">
                                    Editar
