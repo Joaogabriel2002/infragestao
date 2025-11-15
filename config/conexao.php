@@ -5,9 +5,9 @@
 // Salve como: /config/conexao.php
 
 $db_host = 'localhost';      
-$db_name = 'infragestao'; //
-$db_user = 'root';           // Usuário do XAMPP (padrão é 'root')
-$db_pass = '';               
+$db_name = 'infragestao';  // nome do banco na EC2
+$db_user = 'infraguest';   // usuário criado na EC2
+$db_pass = 'Senha123!';    // senha do usuário criado
 $db_char = 'utf8mb4';        
 
 // 2. Criar a "DSN" (Data Source Name)
